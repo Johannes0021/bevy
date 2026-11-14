@@ -58,7 +58,7 @@ pub mod prelude {
     #[doc(hidden)]
     pub use crate::{
         animatable::*, animation_curves::*, graph::*, transition::*, AnimationClip,
-        AnimationPlayer, AnimationPlugin, VariableCurve,
+        AnimationPlayer, AnimationPlugin, AnimationUpdate, VariableCurve,
     };
 }
 
@@ -1319,7 +1319,7 @@ pub struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_schedule(Schedule::new(AnimationUpdate));
+        app.init_schedule(AnimationUpdate);
         let mut main_schedule_order = app.world_mut().resource_mut::<MainScheduleOrder>();
         main_schedule_order.insert_before(PostUpdate, AnimationUpdate);
 
