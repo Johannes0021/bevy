@@ -37,9 +37,9 @@ use crate::{
     prelude::{AnimatableProperty, EvaluatorId},
 };
 
-use bevy_app::{AnimationSystems, App, Plugin, PostUpdate};
+use bevy_app::{AnimationSystems, App, MainScheduleOrder, Plugin, PostUpdate};
 use bevy_asset::{Asset, AssetApp, AssetEventSystems, Assets};
-use bevy_ecs::{prelude::*, resource::IsResource, world::EntityMutExcept};
+use bevy_ecs::{prelude::*, resource::IsResource, schedule::ScheduleLabel, world::EntityMutExcept};
 use bevy_math::FloatOrd;
 use bevy_platform::{collections::HashMap, hash::NoOpHash};
 use bevy_reflect::{prelude::ReflectDefault, Reflect, TypePath};
@@ -1307,12 +1307,22 @@ pub fn animate_targets(
         });
 }
 
+/// The schedule that contains animation systems.
+///
+/// This runs before [`PostUpdate`].
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub struct AnimationUpdate;
+
 /// Adds animation support to an app
 #[derive(Default)]
 pub struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
+        app.add_schedule(Schedule::new(AnimationUpdate));
+        let mut main_schedule_order = app.world_mut().resource_mut::<MainScheduleOrder>();
+        main_schedule_order.insert_before(PostUpdate, AnimationUpdate);
+
         app.init_asset::<AnimationClip>()
             .init_asset::<AnimationGraph>()
             .init_asset_loader::<AnimationGraphAssetLoader>()
@@ -1320,18 +1330,12 @@ impl Plugin for AnimationPlugin {
             .register_asset_reflect::<AnimationGraph>()
             .init_resource::<ThreadedAnimationGraphs>()
             .add_systems(
-                PostUpdate,
+                AnimationUpdate,
                 (
                     graph::thread_animation_graphs.before(AssetEventSystems),
                     advance_transitions,
                     advance_animations,
-                    // TODO: `animate_targets` can animate anything, so
-                    // ambiguity testing currently considers it ambiguous with
-                    // every other system in `PostUpdate`. We may want to move
-                    // it to its own system set after `Update` but before
-                    // `PostUpdate`. For now, we just disable ambiguity testing
-                    // for this system.
-                    animate_targets.ambiguous_with_all(),
+                    animate_targets,
                     trigger_untargeted_animation_events,
                     expire_completed_transitions,
                 )
